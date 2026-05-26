@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hachimii - FF14 Front Line Tactics (v0.2.2)</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; user-select: none; }
+        #control-panel { position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0, 0, 0, 0.9); padding: 12px; border-radius: 8px; color: white; width: 240px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        button, select { padding: 6px 10px; margin: 3px 0; cursor: pointer; border: none; border-radius: 4px; box-sizing: border-box; }
+        #canvas-container { width: 100vw; height: 100vh; background-color: #1e1e1e; }
+        
+        .tool-btn { background: #444; color: white; width: 100%; text-align: left; padding-left: 15px; }
+        .tool-btn.active { background: #ff9900; color: #000; font-weight: bold; }
+        .clear-btn { font-size: 11px; padding: 4px 6px; margin: 2px; border-radius: 3px; color: white; }
+        hr { border: 0; border-top: 1px solid #444; margin: 10px 0; }
+
+        /* 右鍵客製化選單 */
+        #custom-context-menu {
+            display: none;
+            position: absolute;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 5px;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            padding: 5px 0;
+            width: 160px;
+        }
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .context-menu-item:hover {
+            background: #ff9900;
+            color: black;
+            font-weight: bold;
+        }
+    </style>
+    <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
+</head>
+<body>
+
+    <div id="custom-context-menu">
+        <div class="context-menu-item" data-action="set-type" data-fill="#ff4d4d" data-stroke="#ff4d4d">🔴 A隊 (紅實心)</div>
+        <div class="context-menu-item" data-action="set-type" data-fill="#3399ff" data-stroke="#3399ff">🔵 B隊 (藍實心)</div>
+        <div class="context-menu-item" data-action="set-type" data-fill="#ffcc00" data-stroke="#ffcc00">🟡 C隊 (黃實心)</div>
+        <hr style="margin:4px 0; border-color:#444;">
+        <div class="context-menu-item" data-action="set-type" data-fill="transparent" data-stroke="#000000">🔳 中立 (黑邊空心)</div>
+    </div>
+
+    <div id="control-panel">
+        <h3 style="margin-top:0; color:#ff9900;">Hachimii Tactics <span style="font-size:12px; color:#aaa; font-weight:normal;">v0.2.2</span></h3>
+        
+        <label>選擇地圖：</label>
+        <select id="map-select" style="width: 100%; background:#333; color:#fff; margin-bottom: 5px;">
+            <option value="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200">測試地圖 A (幾何暗色)</option>
+            <option value="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200">測試地圖 B (炫彩漸層)</option>
+        </select>
+        
+        <button id="btn-move" class="tool-btn active">✋ 移動 / 縮放 / 刪除模式</button>
+
+        <hr>
+        
+        <h4 style="margin:5px 0;">1. 隊伍位置 (可拖曳)</h4>
+        <div style="display: flex; gap: 4px;">
+            <button id="add-team-a" style="background: #ff4d4d; color: white; flex: 1;">+ A隊(紅)</button>
+            <button id="add-team-b" style="background: #3399ff; color: white; flex: 1;">+ B隊(藍)</button>
+            <button id="add-team-c" style="background: #ffcc00; color: black; font-weight:bold; flex: 1;">+ C隊(黃)</button>
+        </div>
+
+        <hr>
+
+        <h4 style="margin:5px 0;">2. 戰術工具 (切換顏色)</h4>
+        <div style="display: flex; gap: 2px;">
+            <button id="btn-color-red" style="background: #ff4d4d; color: white; flex: 1; font-size:12px; padding:4px;">紅隊工具</button>
+            <button id="btn-color-blue" style="background: #3399ff; color: white; flex: 1; font-size:12px; padding:4px;">藍隊工具</button>
+            <button id="btn-color-yellow" style="background: #ffcc00; color: black; flex: 1; font-size:12px; padding:4px; font-weight:bold;">黃隊工具</button>
+        </div>
+        <p style="margin: 4px 0; font-size: 11px; color: #aaa; text-align: center;">當前選定顏色：<span id="current-color-status" style="color:#ff4d4d; font-weight:bold;">紅色</span></p>
+        
+        <button id="btn-draw-curve" class="tool-btn">✏️ 自由曲線</button>
+        <button id="btn-arrow-solid" class="tool-btn">➡️ 直線實線箭頭</button>
+        <button id="btn-arrow-dashed" class="tool-btn">⏩ 直線虛線箭頭</button>
+        <button id="btn-laser" class="tool-btn">🚨 動態雷射指示筆</button>
+        
+        <hr>
+
+        <h4 style="margin:5px 0;">3. 自訂地形標識</h4>
+        <div style="display: flex; gap: 4px;">
+            <button id="add-shape-triangle" style="background: #666; color: white; flex: 1;">▲ 三角</button>
+            <button id="add-shape-rect" style="background: #666; color: white; flex: 1;">■ 方塊</button>
+            <button id="add-shape-polygon" style="background: #666; color: white; flex: 1;">⬠ 五邊</button>
+        </div>
+
+        <hr>
+        
+        <h4 style="margin:5px 0;">4. 戰術清除工具</h4>
+        <div style="display: flex; flex-wrap: wrap;">
+            <button id="clear-red" class="clear-btn" style="background: #aa2222;">清紅線</button>
+            <button id="clear-blue" class="clear-btn" style="background: #2222aa;">清藍線</button>
+            <button id="clear-yellow" class="clear-btn" style="background: #aaaa22; color:black; font-weight:bold;">清黃線</button>
+        </div>
+        <button id="btn-clear-all" style="background:#cc3333; color:white; width:100%; text-align:center; font-size:12px; margin-top:5px;">🗑️ 抹除全場線條 (保留隊伍與地形)</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
