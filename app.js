@@ -8,7 +8,7 @@ const stage = new Konva.Stage({
     container: 'canvas-container',
     width: window.innerWidth,
     height: window.innerHeight,
-    draggable: true 
+    draggable: false // map should not be dragged; only zoom allowed
 });
 
 const mapLayer = new Konva.Layer();      
@@ -23,14 +23,30 @@ let selectedNode = null;
 
 let mapImageObj = new Image();
 let konvaMapImage = null;
+let spawnMode = null; // 'team-a' | 'team-b' | 'team-c' or null
 
 function loadMap(url) {
     mapImageObj.crossOrigin = 'Anonymous';
     mapImageObj.onload = function() {
         if (konvaMapImage) konvaMapImage.destroy();
+        const imageRatio = mapImageObj.width / mapImageObj.height;
+        const stageRatio = stage.width() / stage.height();
+        let imgWidth = mapImageObj.width;
+        let imgHeight = mapImageObj.height;
+
+        if (imageRatio > stageRatio) {
+            imgWidth = stage.width();
+            imgHeight = stage.width() / imageRatio;
+        } else {
+            imgHeight = stage.height();
+            imgWidth = stage.height() * imageRatio;
+        }
+
+        const xPos = (stage.width() - imgWidth) / 2;
+        const yPos = (stage.height() - imgHeight) / 2;
         konvaMapImage = new Konva.Image({
-            x: 0, y: 0, image: mapImageObj,
-            width: stage.width(), height: stage.height(),
+            x: xPos, y: yPos, image: mapImageObj,
+            width: imgWidth, height: imgHeight,
             listening: false 
         });
         mapLayer.add(konvaMapImage);
@@ -95,11 +111,13 @@ function bindObjectEvents(node) {
 // 隊伍與地形生產器
 // ==========================================
 
-function createTeamNode(color, teamName) {
+function createTeamNode(color, teamName, x, y) {
     const textColor = (color === '#ffcc00') ? '#000000' : '#ffffff';
+    const posX = (typeof x === 'number') ? x : (stage.width() / 2 - stage.x());
+    const posY = (typeof y === 'number') ? y : (stage.height() / 2 - stage.y());
     const group = new Konva.Group({
-        x: stage.width() / 2 - stage.x(), y: stage.height() / 2 - stage.y(),
-        draggable: true, customType: 'team-node'
+        x: posX, y: posY,
+        draggable: true, customType: 'team-node', team: teamName, teamColor: color
     });
     const circle = new Konva.Circle({ radius: 16, fill: color });
     const text = new Konva.Text({ text: teamName, fontSize: 14, fontStyle: 'bold', fill: textColor, x: -6, y: -6 });
@@ -109,7 +127,44 @@ function createTeamNode(color, teamName) {
     bindObjectEvents(group);
     
     objectLayer.batchDraw();
-    switchToMoveMode();
+}
+
+function clearTeamsByName(teamName) {
+    objectLayer.find(node => node.attrs && node.attrs.customType === 'team-node' && node.attrs.team === teamName)
+        .forEach(n => n.destroy());
+    objectLayer.batchDraw();
+}
+
+function createAnnotation(text, x, y) {
+    const textNode = new Konva.Text({
+        text: text,
+        fontSize: 16,
+        fontStyle: 'bold',
+        fill: '#ffffff',
+        padding: 8,
+        align: 'left'
+    });
+    const bg = new Konva.Rect({
+        x: 0,
+        y: 0,
+        width: textNode.width() + 16,
+        height: textNode.height() + 16,
+        fill: 'rgba(255, 255, 0, 0.3)',
+        cornerRadius: 6
+    });
+    textNode.x(8);
+    textNode.y(8);
+
+    const group = new Konva.Group({
+        x: x,
+        y: y,
+        draggable: true,
+        customType: 'annotation'
+    });
+    group.add(bg, textNode);
+    objectLayer.add(group);
+    bindObjectEvents(group);
+    objectLayer.batchDraw();
 }
 
 function createTerrainShape(shapeType) {
@@ -121,7 +176,14 @@ function createTerrainShape(shapeType) {
     };
 
     if (shapeType === 'rect') {
-        shape = new Konva.Rect({ ...commonSettings, width: 50, height: 50 });
+        shape = new Konva.Rect({
+            ...commonSettings,
+            width: 50,
+            height: 50,
+            fill: '#666666',
+            stroke: '#ffffff',
+            strokeWidth: 6
+        });
     } 
     else if (shapeType === 'triangle') {
         shape = new Konva.Line({ ...commonSettings, points: [25, 0, 50, 43, 0, 43], closed: true });
@@ -140,8 +202,15 @@ function createTerrainShape(shapeType) {
 contextMenu.addEventListener('click', function(e) {
     const item = e.target;
     if (!item.classList.contains('context-menu-item') || !rightClickedObject) return;
-    rightClickedObject.fill(item.getAttribute('data-fill'));
-    rightClickedObject.stroke(item.getAttribute('data-stroke'));
+    const fill = item.getAttribute('data-fill');
+    const stroke = item.getAttribute('data-stroke');
+    rightClickedObject.fill(fill);
+    rightClickedObject.stroke(stroke);
+    if (fill === 'transparent') {
+        rightClickedObject.strokeWidth(4);
+    } else {
+        rightClickedObject.strokeWidth(6);
+    }
     objectLayer.batchDraw();
     contextMenu.style.display = 'none';
 });
@@ -252,7 +321,12 @@ const colorStatus = document.getElementById('current-color-status');
 
 function switchToMoveMode() {
     currentMode = 'move';
-    stage.draggable(true); 
+    stage.draggable(false); 
+    // cancel any spawn mode when switching tools
+    spawnMode = null;
+    document.getElementById('add-team-a').classList.remove('active');
+    document.getElementById('add-team-b').classList.remove('active');
+    document.getElementById('add-team-c').classList.remove('active');
     drawLayer.find('.drawn-line').forEach(line => line.listening(true));
     updateButtonUI('btn-move');
     stage.container().style.cursor = 'default';
@@ -265,12 +339,22 @@ function enableDrawMode(modeStr, btnId, cursor = 'precise') {
     transformer.nodes([]); 
     drawLayer.find('.drawn-line').forEach(line => line.listening(false));
     updateButtonUI(btnId);
+    // cancel spawn mode when selecting a drawing/tool mode
+    spawnMode = null;
+    document.getElementById('add-team-a').classList.remove('active');
+    document.getElementById('add-team-b').classList.remove('active');
+    document.getElementById('add-team-c').classList.remove('active');
     stage.container().style.cursor = cursor;
     objectLayer.batchDraw();
     stage.batchDraw();
 }
 
 function handleColorButtonClick(color, tag, text) {
+    // cancel spawn mode when changing color/tool
+    spawnMode = null;
+    document.getElementById('add-team-a').classList.remove('active');
+    document.getElementById('add-team-b').classList.remove('active');
+    document.getElementById('add-team-c').classList.remove('active');
     activeTacticalColor = color;
     currentLineTag = tag;
     colorStatus.innerText = text;
@@ -308,6 +392,33 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
         drawLayer.batchDraw();
     }
 });
+
+// Team spawn mode handling and clear buttons
+function setSpawnMode(mode) {
+    const targetMode = (spawnMode === mode) ? null : mode;
+    spawnMode = targetMode;
+    if (spawnMode) {
+        currentMode = 'move';
+        stage.draggable(false);
+        drawLayer.find('.drawn-line').forEach(line => line.listening(true));
+        updateButtonUI(null);
+    }
+    // visual feedback for add-team buttons
+    document.getElementById('add-team-a').classList.toggle('active', spawnMode === 'team-a');
+    document.getElementById('add-team-b').classList.toggle('active', spawnMode === 'team-b');
+    document.getElementById('add-team-c').classList.toggle('active', spawnMode === 'team-c');
+    // change cursor
+    stage.container().style.cursor = spawnMode ? 'crosshair' : 'default';
+}
+
+document.getElementById('add-team-a').addEventListener('click', () => setSpawnMode('team-a'));
+document.getElementById('add-team-b').addEventListener('click', () => setSpawnMode('team-b'));
+document.getElementById('add-team-c').addEventListener('click', () => setSpawnMode('team-c'));
+document.getElementById('btn-insert-text').addEventListener('click', () => enableDrawMode('text', 'btn-insert-text', 'text'));
+
+document.getElementById('clear-team-a').addEventListener('click', () => clearTeamsByName('A'));
+document.getElementById('clear-team-b').addEventListener('click', () => clearTeamsByName('B'));
+document.getElementById('clear-team-c').addEventListener('click', () => clearTeamsByName('C'));
 
 
 // ==========================================
@@ -350,6 +461,18 @@ stage.on('wheel', (e) => {
 });
 
 stage.on('click tap', function (e) {
+    const pos = stage.getRelativePointerPosition();
+    if (spawnMode && (e.target === stage || e.target === konvaMapImage)) {
+        if (spawnMode === 'team-a') createTeamNode('#ff4d4d', 'A', pos.x, pos.y);
+        else if (spawnMode === 'team-b') createTeamNode('#3399ff', 'B', pos.x, pos.y);
+        else if (spawnMode === 'team-c') createTeamNode('#ffcc00', 'C', pos.x, pos.y);
+        return;
+    }
+    if (currentMode === 'text' && (e.target === stage || e.target === konvaMapImage)) {
+        const text = prompt('請輸入註解文字：');
+        if (text && text.trim()) createAnnotation(text.trim(), pos.x, pos.y);
+        return;
+    }
     if (currentMode !== 'move') return;
     if (e.target === stage || e.target === konvaMapImage) {
         transformer.nodes([]);
@@ -367,9 +490,6 @@ stage.on('contentContextmenu', function (e) {
     }
 });
 
-document.getElementById('add-team-a').addEventListener('click', () => createTeamNode('#ff4d4d', 'A'));
-document.getElementById('add-team-b').addEventListener('click', () => createTeamNode('#3399ff', 'B'));
-document.getElementById('add-team-c').addEventListener('click', () => createTeamNode('#ffcc00', 'C'));
 document.getElementById('add-shape-triangle').addEventListener('click', () => createTerrainShape('triangle'));
 document.getElementById('add-shape-rect').addEventListener('click', () => createTerrainShape('rect'));
 document.getElementById('add-shape-polygon').addEventListener('click', () => createTerrainShape('polygon'));

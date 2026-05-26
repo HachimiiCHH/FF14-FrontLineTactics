@@ -44,9 +44,9 @@
 <body>
 
     <div id="custom-context-menu">
-        <div class="context-menu-item" data-action="set-type" data-fill="#ff4d4d" data-stroke="#ff4d4d">🔴 A隊 (紅實心)</div>
-        <div class="context-menu-item" data-action="set-type" data-fill="#3399ff" data-stroke="#3399ff">🔵 B隊 (藍實心)</div>
-        <div class="context-menu-item" data-action="set-type" data-fill="#ffcc00" data-stroke="#ffcc00">🟡 C隊 (黃實心)</div>
+        <div class="context-menu-item" data-action="set-type" data-fill="#ff4d4d" data-stroke="#ffffff">🔴 A隊 (紅實心)</div>
+        <div class="context-menu-item" data-action="set-type" data-fill="#3399ff" data-stroke="#ffffff">🔵 B隊 (藍實心)</div>
+        <div class="context-menu-item" data-action="set-type" data-fill="#ffcc00" data-stroke="#ffffff">🟡 C隊 (黃實心)</div>
         <hr style="margin:4px 0; border-color:#444;">
         <div class="context-menu-item" data-action="set-type" data-fill="transparent" data-stroke="#000000">🔳 中立 (黑邊空心)</div>
     </div>
@@ -56,8 +56,8 @@
         
         <label>選擇地圖：</label>
         <select id="map-select" style="width: 100%; background:#333; color:#fff; margin-bottom: 5px;">
-            <option value="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200">測試地圖 A (幾何暗色)</option>
-            <option value="https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1200">測試地圖 B (炫彩漸層)</option>
+            <option value="map/M1.png">塵封密岩 (爭奪戰)</option>
+            <option value="map/M2.jpg">測試地圖 B (本機 M2.jpg)</option>
         </select>
         
         <button id="btn-move" class="tool-btn active">✋ 移動 / 縮放 / 刪除模式</button>
@@ -65,10 +65,15 @@
         <hr>
         
         <h4 style="margin:5px 0;">1. 隊伍位置 (可拖曳)</h4>
-        <div style="display: flex; gap: 4px;">
-            <button id="add-team-a" style="background: #ff4d4d; color: white; flex: 1;">+ A隊(紅)</button>
-            <button id="add-team-b" style="background: #3399ff; color: white; flex: 1;">+ B隊(藍)</button>
-            <button id="add-team-c" style="background: #ffcc00; color: black; font-weight:bold; flex: 1;">+ C隊(黃)</button>
+        <div style="display: flex; gap: 4px; align-items: center;">
+            <button id="add-team-a" class="tool-btn" style="background: #ff4d4d; color: white; flex: 1;">生成紅隊</button>
+            <button id="add-team-b" class="tool-btn" style="background: #3399ff; color: white; flex: 1;">生成藍隊</button>
+            <button id="add-team-c" class="tool-btn" style="background: #ffcc00; color: black; font-weight:bold; flex: 1;">生成黃隊</button>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:6px;">
+            <button id="clear-team-a" class="clear-btn" style="background:#bb3333;">清除A隊</button>
+            <button id="clear-team-b" class="clear-btn" style="background:#3333bb;">清除B隊</button>
+            <button id="clear-team-c" class="clear-btn" style="background:#bbbb33; color:black;">清除C隊</button>
         </div>
 
         <hr>
@@ -85,6 +90,7 @@
         <button id="btn-arrow-solid" class="tool-btn">➡️ 直線實線箭頭</button>
         <button id="btn-arrow-dashed" class="tool-btn">⏩ 直線虛線箭頭</button>
         <button id="btn-laser" class="tool-btn">🚨 動態雷射指示筆</button>
+        <button id="btn-insert-text" class="tool-btn">💬 插入註解</button>
         
         <hr>
 
