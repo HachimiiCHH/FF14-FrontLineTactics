@@ -1,6 +1,6 @@
 // ========================================================
 // Hachimii - FF14 Front Line Tactics
-// Version: v0.3.5 (Tactics Code Base64 LZW Compression Edition)
+// Version: v0.3.6 (Tactics Code Base64 LZW Compression Edition)
 // Engine: Konva.js (Multi-Layer Architecture)
 // ========================================================
 
