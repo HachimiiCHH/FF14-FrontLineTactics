@@ -120,6 +120,11 @@ function handleRightClickObject(e, node) {
 
 function bindObjectEvents(node) {
     node.on('mousedown touchstart click tap', (e) => {
+        // Redirection to move mode if clicked while in a spawn mode!
+        if (objectSpawnMode || spawnMode) {
+            switchToMoveMode();
+        }
+        
         if (currentMode !== 'move') return; 
         handleSelectObject(node);
         e.cancelBubble = true; 
@@ -368,6 +373,28 @@ let tempShape = null;
 let pointsLine = [];
 
 stage.on('mousedown touchstart', function (e) {
+    // Redirection if clicking on an existing object while in object spawn mode or team spawn mode!
+    if ((objectSpawnMode || spawnMode) && e.target !== stage && e.target !== konvaMapImage) {
+        // Switch to move mode immediately
+        switchToMoveMode();
+        
+        // Find the correct selectable object node
+        let targetNode = e.target;
+        if (targetNode.parent && (targetNode.parent.attrs.customType === 'team-node' || targetNode.parent.attrs.customType === 'annotation')) {
+            targetNode = targetNode.parent;
+        }
+        
+        // Select it
+        handleSelectObject(targetNode);
+        
+        // Blur active element to restore keyboard focus
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+        window.focus();
+        return;
+    }
+
     // don't start freehand drawing when in move or text mode
     if (currentMode === 'move' || currentMode === 'text') return;
     if (e.evt.button === 2) return; 
