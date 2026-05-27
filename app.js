@@ -1,6 +1,6 @@
 // ========================================================
 // Hachimii - FF14 Front Line Tactics
-// Version: v0.3.0 (Wacom Pen Focus & Bounding Box selection Edition)
+// Version: v0.3.1 (Map Lock & Overlapping Team Markers Edition)
 // Engine: Konva.js (Multi-Layer Architecture)
 // ========================================================
 
@@ -8,7 +8,7 @@ const stage = new Konva.Stage({
     container: 'canvas-container',
     width: window.innerWidth,
     height: window.innerHeight,
-    draggable: false // map should not be dragged; only zoom allowed
+    draggable: true // stage panning allowed by default in move mode when map is unlocked
 });
 
 const mapLayer = new Konva.Layer();      
@@ -88,6 +88,7 @@ const transformer = new Konva.Transformer({
 objectLayer.add(transformer);
 
 const contextMenu = document.getElementById('custom-context-menu');
+const teamMarkerMenu = document.getElementById('team-marker-menu');
 let rightClickedObject = null;
 
 function handleSelectObject(node) {
@@ -116,6 +117,14 @@ function handleRightClickObject(e, node) {
         contextMenu.style.left = e.evt.clientX + 'px';
         contextMenu.style.top = e.evt.clientY + 'px';
         contextMenu.style.display = 'block';
+        teamMarkerMenu.style.display = 'none';
+    } else if (node.attrs.customType === 'team-node') {
+        e.evt.preventDefault();
+        rightClickedObject = node;
+        teamMarkerMenu.style.left = e.evt.clientX + 'px';
+        teamMarkerMenu.style.top = e.evt.clientY + 'px';
+        teamMarkerMenu.style.display = 'block';
+        contextMenu.style.display = 'none';
     }
 }
 
@@ -362,7 +371,80 @@ contextMenu.addEventListener('click', function(e) {
     objectLayer.batchDraw();
     contextMenu.style.display = 'none';
 });
-document.addEventListener('click', () => { contextMenu.style.display = 'none'; });
+
+teamMarkerMenu.addEventListener('click', function(e) {
+    e.stopPropagation(); // prevent closing instantly
+    const target = e.target.closest('.marker-grid-item');
+    const clearBtn = e.target.closest('#btn-clear-team-marker');
+    
+    if (!rightClickedObject || rightClickedObject.attrs.customType !== 'team-node') return;
+    
+    if (clearBtn) {
+        const oldMarker = rightClickedObject.findOne('.team-marker');
+        if (oldMarker) {
+            oldMarker.destroy();
+        }
+        objectLayer.batchDraw();
+        teamMarkerMenu.style.display = 'none';
+        return;
+    }
+    
+    if (target) {
+        const markerIndex = parseInt(target.getAttribute('data-index'), 10);
+        let imagePath = '';
+        let size = 28; // Bounding box size above team node
+        
+        if (markerIndex < 5) {
+            imagePath = `marker/power_${markerIndex + 1}.png`;
+        } else if (markerIndex >= 5 && markerIndex < 12) {
+            imagePath = `marker/p_icon_${markerIndex - 5}.png`;
+        } else {
+            imagePath = `marker/mark_${markerIndex - 11}.png`;
+        }
+        
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = function() {
+            let finalWidth = size;
+            let finalHeight = size;
+            const imgRatio = img.width / img.height;
+            
+            if (imgRatio > 1) {
+                finalWidth = size;
+                finalHeight = size / imgRatio;
+            } else {
+                finalHeight = size;
+                finalWidth = size * imgRatio;
+            }
+            
+            // Destroy existing marker on head if any
+            const oldMarker = rightClickedObject.findOne('.team-marker');
+            if (oldMarker) {
+                oldMarker.destroy();
+            }
+            
+            const konvaImage = new Konva.Image({
+                image: img,
+                x: -finalWidth / 2,
+                y: -16 - finalHeight + 8, // Overlaps about 25% of the team node (32px diameter, ~8px overlap)
+                width: finalWidth,
+                height: finalHeight,
+                name: 'team-marker',
+                customType: 'team-head-marker'
+            });
+            
+            rightClickedObject.add(konvaImage);
+            objectLayer.batchDraw();
+        };
+        img.src = imagePath;
+        teamMarkerMenu.style.display = 'none';
+    }
+});
+
+document.addEventListener('click', () => {
+    contextMenu.style.display = 'none';
+    teamMarkerMenu.style.display = 'none';
+});
 
 
 // ==========================================
@@ -490,6 +572,12 @@ stage.on('mouseup touchend', function () {
 
 const colorStatus = document.getElementById('current-color-status');
 
+function updateStageDraggableState() {
+    const isMoveMode = currentMode === 'move';
+    const isLocked = document.getElementById('lock-map') ? document.getElementById('lock-map').checked : false;
+    stage.draggable(isMoveMode && !isLocked);
+}
+
 function updateDraggableState() {
     const btnMove = document.getElementById('btn-move');
     const isMoveMode = btnMove && btnMove.classList.contains('active');
@@ -506,11 +594,14 @@ function updateDraggableState() {
         line.draggable(isMoveMode);
         line.listening(isMoveMode);
     });
+
+    // Also update stage pan state
+    updateStageDraggableState();
 }
 
 function switchToMoveMode() {
     currentMode = 'move';
-    stage.draggable(false); 
+    updateStageDraggableState();
     // cancel any spawn mode when switching tools
     spawnMode = null;
     objectSpawnMode = null;
@@ -888,3 +979,10 @@ document.getElementById('clear-all-markers').addEventListener('click', () => {
     }
     objectLayer.batchDraw();
 });
+
+// Setup Lock Map checkbox change listener and initial run
+const lockMapCheckbox = document.getElementById('lock-map');
+if (lockMapCheckbox) {
+    lockMapCheckbox.addEventListener('change', updateStageDraggableState);
+}
+updateStageDraggableState(); // run once on initialization

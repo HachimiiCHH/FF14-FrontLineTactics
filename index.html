@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hachimii - FF14 Front Line Tactics (v0.3.0)</title>
+    <title>Hachimii - FF14 Front Line Tactics (v0.3.1)</title>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; user-select: none; }
         #control-panel { position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(0, 0, 0, 0.9); padding: 12px; border-radius: 8px; color: white; width: 240px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
@@ -38,6 +38,73 @@
             color: black;
             font-weight: bold;
         }
+
+        /* 隊伍頭上標記選單 */
+        #team-marker-menu {
+            display: none;
+            position: absolute;
+            background: rgba(30, 30, 35, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 153, 0, 0.4);
+            border-radius: 8px;
+            color: white;
+            z-index: 1001;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+            padding: 10px;
+            width: 200px;
+        }
+        #team-marker-menu .menu-title {
+            font-size: 12px;
+            color: #ff9900;
+            margin-bottom: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+        #team-marker-menu .marker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        #team-marker-menu .marker-grid-item {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        #team-marker-menu .marker-grid-item:hover {
+            background: rgba(255, 153, 0, 0.25);
+            border-color: #ff9900;
+            transform: scale(1.1);
+        }
+        #team-marker-menu .marker-grid-item img {
+            width: 100%;
+            height: auto;
+            max-width: 32px;
+            max-height: 32px;
+            object-fit: contain;
+        }
+        #team-marker-menu .clear-marker-btn {
+            background: #552222;
+            color: #ff9999;
+            border: 1px solid #773333;
+            border-radius: 4px;
+            padding: 5px;
+            font-size: 11px;
+            width: 100%;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.2s;
+        }
+        #team-marker-menu .clear-marker-btn:hover {
+            background: #772222;
+            color: white;
+        }
     </style>
     <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
 </head>
@@ -51,8 +118,31 @@
         <div class="context-menu-item" data-action="set-type" data-fill="transparent" data-stroke="#000000">🔳 中立 (黑邊空心)</div>
     </div>
 
+    <div id="team-marker-menu">
+        <div class="menu-title">選擇頭上情報標記</div>
+        <div class="marker-grid">
+            <div class="marker-grid-item" data-index="0"><img src="marker/power_1.png"></div>
+            <div class="marker-grid-item" data-index="1"><img src="marker/power_2.png"></div>
+            <div class="marker-grid-item" data-index="2"><img src="marker/power_3.png"></div>
+            <div class="marker-grid-item" data-index="3"><img src="marker/power_4.png"></div>
+            <div class="marker-grid-item" data-index="4"><img src="marker/power_5.png"></div>
+            <div class="marker-grid-item" data-index="5"><img src="marker/p_icon_0.png"></div>
+            <div class="marker-grid-item" data-index="6"><img src="marker/p_icon_1.png"></div>
+            <div class="marker-grid-item" data-index="7"><img src="marker/p_icon_2.png"></div>
+            <div class="marker-grid-item" data-index="8"><img src="marker/p_icon_3.png"></div>
+            <div class="marker-grid-item" data-index="9"><img src="marker/p_icon_4.png"></div>
+            <div class="marker-grid-item" data-index="10"><img src="marker/p_icon_5.png"></div>
+            <div class="marker-grid-item" data-index="11"><img src="marker/p_icon_6.png"></div>
+            <div class="marker-grid-item" data-index="12"><img src="marker/mark_1.png"></div>
+            <div class="marker-grid-item" data-index="13"><img src="marker/mark_2.png"></div>
+            <div class="marker-grid-item" data-index="14"><img src="marker/mark_3.png"></div>
+            <div class="marker-grid-item" data-index="15"><img src="marker/mark_4.png"></div>
+        </div>
+        <button class="clear-marker-btn" id="btn-clear-team-marker">❌ 清除頭上標記</button>
+    </div>
+
     <div id="control-panel">
-        <h3 style="margin-top:0; color:#ff9900;">Hachimii Tactics <span style="font-size:12px; color:#aaa; font-weight:normal;">v0.3.0</span></h3>
+        <h3 style="margin-top:0; color:#ff9900;">Hachimii Tactics <span style="font-size:12px; color:#aaa; font-weight:normal;">v0.3.1</span></h3>
         
         <label>選擇地圖：</label>
         <select id="map-select" style="width: 100%; background:#333; color:#fff; margin-bottom: 5px;">
@@ -60,6 +150,10 @@
             <option value="map/M2.jpg">榮譽野（碎冰戰）</option>
             <option value="map/M3.png">昂薩哈凱爾（競爭戰）</option>
         </select>
+        <div style="display: flex; align-items: center; gap: 6px; margin: 4px 0 8px 2px; font-size: 12px;">
+            <input type="checkbox" id="lock-map" style="cursor: pointer; width: 14px; height: 14px; margin: 0;">
+            <label for="lock-map" style="cursor: pointer; user-select: none; color: #ff9900; font-weight: bold;">🔒 鎖定地圖移動</label>
+        </div>
         
         <button id="btn-move" class="tool-btn active">✋ 移動 / 縮放 / 刪除模式</button>
 
