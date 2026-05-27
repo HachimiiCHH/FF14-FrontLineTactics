@@ -1,6 +1,6 @@
 // ========================================================
 // Hachimii - FF14 Front Line Tactics
-// Version: v0.3.1 (Map Lock & Overlapping Team Markers Edition)
+// Version: v0.3.2 (Map Lock & Overlapping Team Markers & Object Layer Z-Index Edition)
 // Engine: Konva.js (Multi-Layer Architecture)
 // ========================================================
 
@@ -323,6 +323,7 @@ function createObjectSprite(objectIndex, x, y) {
         });
         
         objectLayer.add(konvaImage);
+        konvaImage.moveToBottom(); // Always stay at the bottom, just above the map layer, so player nodes are never covered
         bindObjectEvents(konvaImage);
         updateDraggableState();
         objectLayer.batchDraw();
