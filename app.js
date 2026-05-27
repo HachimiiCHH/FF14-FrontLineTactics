@@ -109,7 +109,7 @@ function handleSelectObject(node) {
 }
 
 function handleRightClickObject(e, node) {
-    if (node.attrs.customType === 'terrain-shape') {
+    if (node.attrs.customType === 'terrain-shape' || (node.attrs.customType === 'object-sprite' && node.attrs.objectType >= 6)) {
         e.evt.preventDefault(); 
         rightClickedObject = node;
         contextMenu.style.left = e.evt.clientX + 'px';
@@ -278,9 +278,18 @@ function createObjectSprite(objectIndex, x, y) {
     if (objectIndex < 3) {
         imagePath = `object/ice-big-${objectIndex}.png`;
         size = 60;
-    } else {
+    } else if (objectIndex >= 3 && objectIndex < 6) {
         imagePath = `object/ice-small-${objectIndex - 3}.png`;
         size = 40;
+    } else if (objectIndex === 6) {
+        imagePath = 'object/score-B-0.png';
+        size = 40;
+    } else if (objectIndex === 7) {
+        imagePath = 'object/score-A-0.png';
+        size = 50;
+    } else if (objectIndex === 8) {
+        imagePath = 'object/score-S-0.png';
+        size = 60;
     }
     
     // Load image with Promise
@@ -314,13 +323,36 @@ contextMenu.addEventListener('click', function(e) {
     if (!item.classList.contains('context-menu-item') || !rightClickedObject) return;
     const fill = item.getAttribute('data-fill');
     const stroke = item.getAttribute('data-stroke');
-    rightClickedObject.fill(fill);
-    rightClickedObject.stroke(stroke);
-    if (fill === 'transparent') {
-        rightClickedObject.strokeWidth(4);
+    
+    if (rightClickedObject.attrs.customType === 'object-sprite' && rightClickedObject.attrs.objectType >= 6) {
+        // Swap tomelith image source based on team color selection
+        let teamCode = '0';
+        if (fill === '#ff4d4d') teamCode = 'A';
+        else if (fill === '#3399ff') teamCode = 'B';
+        else if (fill === '#ffcc00') teamCode = 'C';
+        
+        let rankCode = 'B';
+        if (rightClickedObject.attrs.objectType === 7) rankCode = 'A';
+        else if (rightClickedObject.attrs.objectType === 8) rankCode = 'S';
+        
+        const newImg = new Image();
+        newImg.crossOrigin = 'Anonymous';
+        newImg.onload = function() {
+            rightClickedObject.image(newImg);
+            objectLayer.batchDraw();
+        };
+        newImg.src = `object/score-${rankCode}-${teamCode}.png`;
     } else {
-        rightClickedObject.strokeWidth(6);
+        // Handle normal terrain shape color change
+        rightClickedObject.fill(fill);
+        rightClickedObject.stroke(stroke);
+        if (fill === 'transparent') {
+            rightClickedObject.strokeWidth(4);
+        } else {
+            rightClickedObject.strokeWidth(6);
+        }
     }
+    
     objectLayer.batchDraw();
     contextMenu.style.display = 'none';
 });
@@ -457,7 +489,7 @@ function switchToMoveMode() {
     document.getElementById('add-team-a').classList.remove('active');
     document.getElementById('add-team-b').classList.remove('active');
     document.getElementById('add-team-c').classList.remove('active');
-    for (let i = 0; i <= 5; i++) {
+    for (let i = 0; i <= 8; i++) {
         const btn = document.getElementById(`gen-object-${i}`);
         if (btn) btn.classList.remove('active');
     }
@@ -478,7 +510,7 @@ function enableDrawMode(modeStr, btnId, cursor = 'precise') {
     document.getElementById('add-team-a').classList.remove('active');
     document.getElementById('add-team-b').classList.remove('active');
     document.getElementById('add-team-c').classList.remove('active');
-    for (let i = 0; i <= 5; i++) {
+    for (let i = 0; i <= 8; i++) {
         const btn = document.getElementById(`gen-object-${i}`);
         if (btn) btn.classList.remove('active');
     }
@@ -495,7 +527,7 @@ function handleColorButtonClick(color, tag, text) {
     document.getElementById('add-team-a').classList.remove('active');
     document.getElementById('add-team-b').classList.remove('active');
     document.getElementById('add-team-c').classList.remove('active');
-    for (let i = 0; i <= 5; i++) {
+    for (let i = 0; i <= 8; i++) {
         const btn = document.getElementById(`gen-object-${i}`);
         if (btn) btn.classList.remove('active');
     }
@@ -573,7 +605,7 @@ function setObjectSpawnMode(mode) {
         spawnMode = null; // cancel team spawn mode when selecting object mode
     }
     // visual feedback for object buttons
-    for (let i = 0; i <= 5; i++) {
+    for (let i = 0; i <= 8; i++) {
         const btn = document.getElementById(`gen-object-${i}`);
         if (btn) btn.classList.toggle('active', objectSpawnMode === `object-${i}`);
     }
@@ -582,7 +614,7 @@ function setObjectSpawnMode(mode) {
     updateDraggableState();
 }
 
-for (let i = 0; i <= 5; i++) {
+for (let i = 0; i <= 8; i++) {
     const btn = document.getElementById(`gen-object-${i}`);
     if (btn) {
         btn.addEventListener('click', () => setObjectSpawnMode(`object-${i}`));
@@ -652,7 +684,14 @@ stage.on('click tap', function (e) {
     // object spawn mode: allow placing objects on click
     if (objectSpawnMode && (e.target === stage || e.target === konvaMapImage)) {
         const objIndex = parseInt(objectSpawnMode.replace('object-', ''), 10);
-        const offset = objIndex < 3 ? 30 : 20; // 30px offset for 60px size, 20px offset for 40px size
+        let size = 60;
+        if (objIndex < 3) size = 60;
+        else if (objIndex < 6) size = 40;
+        else if (objIndex === 6) size = 40;
+        else if (objIndex === 7) size = 50;
+        else if (objIndex === 8) size = 60;
+        
+        const offset = size / 2;
         createObjectSprite(objIndex, pos.x - offset, pos.y - offset); // center the image at click point
         return;
     }
