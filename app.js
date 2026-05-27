@@ -1,6 +1,6 @@
 // ========================================================
 // Hachimii - FF14 Front Line Tactics
-// Version: v0.2.2 (Extended Laser Timing Edition)
+// Version: v0.3.0 (Wacom Pen Focus & Bounding Box selection Edition)
 // Engine: Konva.js (Multi-Layer Architecture)
 // ========================================================
 
@@ -74,10 +74,16 @@ let rightClickedObject = null;
 
 function handleSelectObject(node) {
     if (selectedNode && selectedNode !== node) {
-        if (selectedNode.attrs.name === 'terrain') transformer.nodes([]);
+        transformer.nodes([]);
     }
     selectedNode = node;
     if (node.attrs.name === 'terrain') {
+        transformer.rotateEnabled(true);
+        transformer.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+        transformer.nodes([node]);
+    } else if (node.attrs.customType === 'team-node' || node.attrs.customType === 'annotation' || node.attrs.customType === 'object-sprite') {
+        transformer.rotateEnabled(false);
+        transformer.enabledAnchors([]); // No resize/rotate anchors, just a premium bounding box!
         transformer.nodes([node]);
     } else {
         transformer.nodes([]); 
@@ -96,10 +102,16 @@ function handleRightClickObject(e, node) {
 }
 
 function bindObjectEvents(node) {
-    node.on('click tap', (e) => {
+    node.on('mousedown touchstart click tap', (e) => {
         if (currentMode !== 'move') return; 
         handleSelectObject(node);
         e.cancelBubble = true; 
+        
+        // Blur active element (like sidebar buttons) to transfer keyboard focus to window
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+        window.focus();
     });
     node.on('contextmenu', (e) => {
         if (currentMode !== 'move') return;
@@ -127,6 +139,7 @@ function createTeamNode(color, teamName, x, y) {
     group.add(circle, text);
     objectLayer.add(group);
     bindObjectEvents(group);
+    updateDraggableState();
     
     objectLayer.batchDraw();
 }
@@ -166,6 +179,7 @@ function createAnnotation(text, x, y) {
     group.add(bg, textNode);
     objectLayer.add(group);
     bindObjectEvents(group);
+    updateDraggableState();
     objectLayer.batchDraw();
 }
 
@@ -235,6 +249,7 @@ function createTerrainShape(shapeType) {
 
     objectLayer.add(shape);
     bindObjectEvents(shape);
+    updateDraggableState();
 
     objectLayer.batchDraw();
     switchToMoveMode();
@@ -268,6 +283,7 @@ function createObjectSprite(objectIndex, x, y) {
         
         objectLayer.add(konvaImage);
         bindObjectEvents(konvaImage);
+        updateDraggableState();
         objectLayer.batchDraw();
     };
     img.onerror = function() {
@@ -383,8 +399,8 @@ stage.on('mouseup touchend', function () {
         }, 3000); 
     }
     else if (tempShape) {
-        tempShape.draggable(true); 
         bindObjectEvents(tempShape); 
+        updateDraggableState();
     }
     tempShape = null;
     drawLayer.batchDraw();
@@ -396,6 +412,24 @@ stage.on('mouseup touchend', function () {
 // ==========================================
 
 const colorStatus = document.getElementById('current-color-status');
+
+function updateDraggableState() {
+    const btnMove = document.getElementById('btn-move');
+    const isMoveMode = btnMove && btnMove.classList.contains('active');
+    
+    // Update objectLayer nodes (teams, annotations, terrain, sprites)
+    objectLayer.getChildren().forEach(node => {
+        if (node !== transformer) {
+            node.draggable(isMoveMode);
+        }
+    });
+
+    // Update drawLayer lines
+    drawLayer.find('.drawn-line').forEach(line => {
+        line.draggable(isMoveMode);
+        line.listening(isMoveMode);
+    });
+}
 
 function switchToMoveMode() {
     currentMode = 'move';
@@ -410,9 +444,9 @@ function switchToMoveMode() {
         const btn = document.getElementById(`gen-object-${i}`);
         if (btn) btn.classList.remove('active');
     }
-    drawLayer.find('.drawn-line').forEach(line => line.listening(true));
     updateButtonUI('btn-move');
     stage.container().style.cursor = 'default';
+    updateDraggableState();
     stage.batchDraw();
 }
 
@@ -420,7 +454,6 @@ function enableDrawMode(modeStr, btnId, cursor = 'precise') {
     currentMode = modeStr;
     stage.draggable(false); 
     transformer.nodes([]); 
-    drawLayer.find('.drawn-line').forEach(line => line.listening(false));
     updateButtonUI(btnId);
     // cancel spawn mode when selecting a drawing/tool mode
     spawnMode = null;
@@ -433,6 +466,7 @@ function enableDrawMode(modeStr, btnId, cursor = 'precise') {
         if (btn) btn.classList.remove('active');
     }
     stage.container().style.cursor = cursor;
+    updateDraggableState();
     objectLayer.batchDraw();
     stage.batchDraw();
 }
@@ -502,6 +536,7 @@ function setSpawnMode(mode) {
     document.getElementById('add-team-c').classList.toggle('active', spawnMode === 'team-c');
     // change cursor
     stage.container().style.cursor = spawnMode ? 'crosshair' : 'default';
+    updateDraggableState();
 }
 
 document.getElementById('add-team-a').addEventListener('click', () => setSpawnMode('team-a'));
@@ -527,6 +562,7 @@ function setObjectSpawnMode(mode) {
     }
     // change cursor
     stage.container().style.cursor = objectSpawnMode ? 'crosshair' : 'default';
+    updateDraggableState();
 }
 
 for (let i = 0; i <= 5; i++) {
@@ -616,7 +652,7 @@ stage.on('contentContextmenu', function (e) {
     if (currentMode !== 'move') {
         e.evt.preventDefault(); 
         if (isDrawing) { isDrawing = false; if(tempShape) tempShape.destroy(); drawLayer.batchDraw(); }
-        switchToMoveMode();
+        // Do NOT automatically switch to move mode to prevent Wacom stylus or right-click from causing accidental mode switches.
     }
 });
 
