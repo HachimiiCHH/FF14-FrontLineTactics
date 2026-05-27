@@ -510,7 +510,7 @@ stage.on('mousedown touchstart', function (e) {
         tempShape = new Konva.Arrow({
             ...commonSettings, points: [pos.x, pos.y, pos.x, pos.y],
             pointerLength: 12, pointerWidth: 12, fill: activeTacticalColor,
-            dash: (currentMode === 'arrow-dashed') ? [10, 5] : null
+            dash: (currentMode === 'arrow-dashed') ? [15, 10] : null
         });
     }
     drawLayer.add(tempShape);
