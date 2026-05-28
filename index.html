@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hachimii - FF14 Front Line Tactics (v0.3.6)</title>
+    <title>Hachimii - FF14 Front Line Tactics (v0.3.8)</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; user-select: none; }
@@ -106,6 +106,166 @@
             background: #772222;
             color: white;
         }
+
+        /* 勢力分數計數器樣式 */
+        #scoreboard-widget {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(18, 18, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 14px 16px;
+            width: 290px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            color: #e0e0e0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #scoreboard-widget.collapsed {
+            width: 180px;
+            padding: 10px 14px;
+        }
+        #scoreboard-widget.collapsed #scoreboard-body {
+            display: none;
+        }
+        .scoreboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .score-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .faction-flag {
+            width: 38px;
+            height: 38px;
+            object-fit: contain;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .score-info {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .score-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .faction-name {
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        .team-blue { color: #3399ff; text-shadow: 0 0 8px rgba(51, 153, 255, 0.3); }
+        .team-red { color: #ff4d4d; text-shadow: 0 0 8px rgba(255, 77, 77, 0.3); }
+        .team-yellow { color: #ffcc00; text-shadow: 0 0 8px rgba(255, 204, 0, 0.3); }
+        
+        .score-display {
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .current-score {
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            padding: 1px 4px;
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+        .current-score:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .score-slash {
+            color: #666;
+            margin: 0 2px;
+        }
+        .max-score-display {
+            color: #888;
+        }
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .bar-blue {
+            background: linear-gradient(90deg, #1a73e8, #3399ff);
+            box-shadow: 0 0 8px rgba(51, 153, 255, 0.5);
+        }
+        .bar-red {
+            background: linear-gradient(90deg, #d93025, #ff4d4d);
+            box-shadow: 0 0 8px rgba(255, 77, 77, 0.5);
+        }
+        .bar-yellow {
+            background: linear-gradient(90deg, #f9ab00, #ffcc00);
+            box-shadow: 0 0 8px rgba(255, 204, 0, 0.5);
+        }
+        
+        .score-actions {
+            display: flex;
+            gap: 3px;
+            margin-top: 2px;
+        }
+        .score-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #ccc;
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            flex-grow: 1;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+        .score-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+        .score-btn:active {
+            transform: translateY(0);
+        }
+        .plus-btn:hover {
+            color: #33cc66;
+            background: rgba(51, 204, 102, 0.1);
+            border-color: rgba(51, 204, 102, 0.3);
+        }
+        .minus-btn:hover {
+            color: #ff6666;
+            background: rgba(255, 102, 102, 0.1);
+            border-color: rgba(255, 102, 102, 0.3);
+        }
+        
+        .scoreboard-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 10px;
+            margin-top: 12px;
+        }
     </style>
     <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
@@ -147,7 +307,7 @@
         <h3 style="margin-top:0; color:#ff9900; display:flex; align-items:center; gap:6px;">
             <img src="favicon.png" style="width:20px; height:20px; object-fit:contain; border-radius:3px;">
             Hachimii Tactics 
-            <span style="font-size:12px; color:#aaa; font-weight:normal; margin-left:4px;">v0.3.6</span>
+            <span style="font-size:12px; color:#aaa; font-weight:normal; margin-left:4px;">v0.3.8</span>
         </h3>
         
         <label>選擇地圖：</label>
@@ -338,6 +498,93 @@
         <h4 style="margin:5px 0;">7. 戰術清除工具</h4>
 
         <button id="btn-clear-all" style="background:#cc3333; color:white; width:100%; text-align:center; font-size:12px; margin-top:5px; cursor: pointer; border-radius: 4px;">🗑️ 抹除全場線條 (保留隊伍與地形)</button>
+    </div>
+
+    <!-- Scoreboard Widget -->
+    <div id="scoreboard-widget">
+        <div class="scoreboard-header">
+            <span style="font-weight: bold; color: #ff9900; display: flex; align-items: center; gap: 6px;">
+                🏆 勢力分數計數器
+            </span>
+            <button id="btn-toggle-scoreboard" title="收合/展開" style="background: transparent; color: #aaa; border: none; padding: 2px 6px; font-size: 12px; cursor: pointer; border-radius: 3px;">▲</button>
+        </div>
+        <div id="scoreboard-body">
+            <!-- Blue Row -->
+            <div class="score-row" data-team="blue">
+                <img src="map/BLUE.png" class="faction-flag" alt="不滅隊">
+                <div class="score-info">
+                    <div class="score-meta">
+                        <span class="faction-name team-blue">不滅隊</span>
+                        <div class="score-display">
+                            <span class="current-score" id="score-blue">0</span>
+                            <span class="score-slash">/</span>
+                            <span class="max-score-display">1600</span>
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar bar-blue" id="progress-blue" style="width: 0%;"></div>
+                    </div>
+                    <div class="score-actions">
+                        <button class="score-btn minus-btn" data-team="blue" data-val="-100">-100</button>
+                        <button class="score-btn minus-btn" data-team="blue" data-val="-10">-10</button>
+                        <button class="score-btn plus-btn" data-team="blue" data-val="10">+10</button>
+                        <button class="score-btn plus-btn" data-team="blue" data-val="100">+100</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Red Row -->
+            <div class="score-row" data-team="red">
+                <img src="map/RED.png" class="faction-flag" alt="黑渦團">
+                <div class="score-info">
+                    <div class="score-meta">
+                        <span class="faction-name team-red">黑渦團</span>
+                        <div class="score-display">
+                            <span class="current-score" id="score-red">0</span>
+                            <span class="score-slash">/</span>
+                            <span class="max-score-display">1600</span>
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar bar-red" id="progress-red" style="width: 0%;"></div>
+                    </div>
+                    <div class="score-actions">
+                        <button class="score-btn minus-btn" data-team="red" data-val="-100">-100</button>
+                        <button class="score-btn minus-btn" data-team="red" data-val="-10">-10</button>
+                        <button class="score-btn plus-btn" data-team="red" data-val="10">+10</button>
+                        <button class="score-btn plus-btn" data-team="red" data-val="100">+100</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Yellow Row -->
+            <div class="score-row" data-team="yellow">
+                <img src="map/YELLOW.png" class="faction-flag" alt="雙蛇黨">
+                <div class="score-info">
+                    <div class="score-meta">
+                        <span class="faction-name team-yellow">雙蛇黨</span>
+                        <div class="score-display">
+                            <span class="current-score" id="score-yellow">0</span>
+                            <span class="score-slash">/</span>
+                            <span class="max-score-display">1600</span>
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar bar-yellow" id="progress-yellow" style="width: 0%;"></div>
+                    </div>
+                    <div class="score-actions">
+                        <button class="score-btn minus-btn" data-team="yellow" data-val="-100">-100</button>
+                        <button class="score-btn minus-btn" data-team="yellow" data-val="-10">-10</button>
+                        <button class="score-btn plus-btn" data-team="yellow" data-val="10">+10</button>
+                        <button class="score-btn plus-btn" data-team="yellow" data-val="100">+100</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="scoreboard-footer" style="display: flex; justify-content: center; margin-top: 8px;">
+                <button id="btn-reset-scores" style="background: #442222; color: #ff9999; border: 1px solid #663333; border-radius: 4px; padding: 4px 15px; font-size: 11px; cursor: pointer; width: 100%; transition: background 0.2s;">🧹 重設三方分數</button>
+            </div>
+        </div>
     </div>
 
     <div id="canvas-container"></div>

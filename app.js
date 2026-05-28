@@ -1,6 +1,6 @@
 // ========================================================
 // Hachimii - FF14 Front Line Tactics
-// Version: v0.3.6 (Tactics Code Base64 LZW Compression Edition)
+// Version: v0.3.8 (Tactics Code Base64 LZW Compression Edition)
 // Engine: Konva.js (Multi-Layer Architecture)
 // ========================================================
 
@@ -81,6 +81,15 @@ document.getElementById('map-select').addEventListener('change', (e) => {
     
     // Load new map image
     loadMap(e.target.value);
+
+    // Create fresh on-map scoreboards for the new map
+    createOnMapScoreboards();
+
+    // Reset scores & update max score by map
+    scoreboard.red = 0;
+    scoreboard.blue = 0;
+    scoreboard.yellow = 0;
+    updateMaxScoreByMap();
 });
 
 
@@ -1021,13 +1030,19 @@ function exportTacticsJSON() {
     const isLocked = document.getElementById('lock-map') ? (document.getElementById('lock-map').checked ? 1 : 0) : 0;
     
     const data = {
-        v: '0.3.6', 
+        v: '0.3.8', 
         m: mapId,   
         l: isLocked, 
         s: [
             Math.round(stage.scaleX() * 1000) / 1000, 
             Math.round(stage.x() * 10) / 10,          
             Math.round(stage.y() * 10) / 10           
+        ],
+        sc: [
+            scoreboard.red,
+            scoreboard.blue,
+            scoreboard.yellow,
+            scoreboard.max
         ],
         o: [], 
         l_arr: [] 
@@ -1174,10 +1189,31 @@ function importTacticsJSON() {
         objectLayer.getChildren().filter(node => node !== transformer).forEach(node => node.destroy());
         drawLayer.destroyChildren();
 
+        // Create fresh on-map scoreboards since objectLayer was cleared
+        createOnMapScoreboards();
+
         // 3. Restore stage scale & position
         stage.scale({ x: scaleVal, y: scaleVal });
         stage.position({ x: stageX, y: stageY });
         updateStageDraggableState();
+
+        // 3.5 Restore scoreboard scores and maximum value
+        if (data.sc && Array.isArray(data.sc) && data.sc.length === 4) {
+            scoreboard.red = data.sc[0];
+            scoreboard.blue = data.sc[1];
+            scoreboard.yellow = data.sc[2];
+            scoreboard.max = data.sc[3];
+        } else {
+            scoreboard.red = 0;
+            scoreboard.blue = 0;
+            scoreboard.yellow = 0;
+            if (mapUrl.includes('M1.png')) {
+                scoreboard.max = 800;
+            } else {
+                scoreboard.max = 1600;
+            }
+        }
+        updateScoreboardUI();
 
         // Helper to handle team node marker attachment asynchronously
         function attachMarkerToTeamNode(teamNode, markerIndex) {
@@ -1380,3 +1416,271 @@ function importTacticsJSON() {
 // Bind Section 6 buttons
 document.getElementById('btn-export-json').addEventListener('click', exportTacticsJSON);
 document.getElementById('btn-import-json').addEventListener('click', importTacticsJSON);
+
+// ==========================================
+// 勢力分數計數器邏輯
+// ==========================================
+
+const scoreboard = {
+    red: 0,
+    blue: 0,
+    yellow: 0,
+    max: 1600
+};
+
+let redBaseScoreboard = null;
+let blueBaseScoreboard = null;
+let yellowBaseScoreboard = null;
+
+// Create scoreboards near starting/spawn bases on the map
+function createOnMapScoreboards() {
+    // If they already exist, destroy them first
+    if (redBaseScoreboard) redBaseScoreboard.destroy();
+    if (blueBaseScoreboard) blueBaseScoreboard.destroy();
+    if (yellowBaseScoreboard) yellowBaseScoreboard.destroy();
+
+    const mapUrl = document.getElementById('map-select').value;
+
+    // Spawn base coordinates on the 1200x1200px map space:
+    const spawns = {
+        blue: { x: 600, y: 70, color: '#3399ff', logo: 'map/BLUE.png', label: '不滅隊' },
+        red: { x: 150, y: 920, color: '#ff4d4d', logo: 'map/RED.png', label: '黑渦團' },
+        yellow: { x: 1050, y: 920, color: '#ffcc00', logo: 'map/YELLOW.png', label: '雙蛇黨' }
+    };
+
+    // Apply custom coordinates provided by the user for each map
+    if (mapUrl.includes('M1.png')) {
+        // 塵封密岩 (M1.png)
+        spawns.blue.x = 1074; spawns.blue.y = 745;
+        spawns.yellow.x = 475; spawns.yellow.y = 61;
+        spawns.red.x = 173; spawns.red.y = 765;
+    } else if (mapUrl.includes('M2.jpg')) {
+        // 榮譽野 (M2.jpg)
+        spawns.yellow.x = 134; spawns.yellow.y = 459;
+        spawns.blue.x = 830; spawns.blue.y = 100;
+        spawns.red.x = 834; spawns.red.y = 853;
+    } else if (mapUrl.includes('M3.png')) {
+        // 昂薩哈凱爾 (M3.png)
+        spawns.blue.x = 817; spawns.blue.y = 75;
+        spawns.red.x = 125; spawns.red.y = 470;
+        spawns.yellow.x = 923; spawns.yellow.y = 856;
+    }
+
+    function buildBaseScoreboard(team, data) {
+        const group = new Konva.Group({
+            x: data.x,
+            y: data.y,
+            name: `base-scoreboard-${team}`,
+            customType: 'base-scoreboard',
+            draggable: false // Fixed and locked in coordinates!
+        });
+
+        // Background Capsule (enlarged & shortened width for pure Logo + Score capsule)
+        const rect = new Konva.Rect({
+            x: -60,
+            y: -30,
+            width: 120,
+            height: 60,
+            fill: 'rgba(18, 18, 20, 0.88)',
+            stroke: data.color,
+            strokeWidth: 2.5, // slightly thicker outline for high contrast
+            cornerRadius: 12,
+            shadowColor: 'black',
+            shadowBlur: 10,
+            shadowOffset: { x: 0, y: 4 },
+            shadowOpacity: 0.5
+        });
+        group.add(rect);
+
+        // Logo (enlarged from 36px to 44px)
+        const imgObj = new Image();
+        imgObj.crossOrigin = 'Anonymous';
+        imgObj.onload = function() {
+            const logoImg = new Konva.Image({
+                image: imgObj,
+                x: -50,
+                y: -22,
+                width: 44,
+                height: 44
+            });
+            group.add(logoImg);
+            objectLayer.batchDraw();
+        };
+        imgObj.src = data.logo;
+
+        // Score display Text (enlarged from 14px to 22px, showing only current score!)
+        const scoreText = new Konva.Text({
+            x: 4,
+            y: -12, // perfectly vertically centered for 22px font height
+            text: '0',
+            fontSize: 22,
+            fontStyle: 'bold',
+            fill: '#ffffff',
+            fontFamily: 'monospace',
+            name: 'score-value'
+        });
+        group.add(scoreText);
+
+        // Click/tap on the base scoreboard on map to change scores directly!
+        group.on('click tap', (e) => {
+            e.cancelBubble = true; // Stop event bubbling so draw or other actions aren't triggered
+            const teamName = team === 'red' ? '黑渦團' : team === 'blue' ? '不滅隊' : '雙蛇黨';
+            const currentVal = scoreboard[team];
+            const newValStr = prompt(`請輸入 ${teamName} 的分數：`, currentVal);
+            if (newValStr !== null) {
+                let newVal = parseInt(newValStr, 10);
+                if (!isNaN(newVal)) {
+                    if (newVal < 0) newVal = 0;
+                    scoreboard[team] = newVal;
+                    updateScoreboardUI();
+                }
+            }
+        });
+
+        // Hover cursor pointer
+        group.on('mouseenter', () => {
+            stage.container().style.cursor = 'pointer';
+        });
+        group.on('mouseleave', () => {
+            stage.container().style.cursor = 'default';
+        });
+
+        objectLayer.add(group);
+        return group;
+    }
+
+    blueBaseScoreboard = buildBaseScoreboard('blue', spawns.blue);
+    redBaseScoreboard = buildBaseScoreboard('red', spawns.red);
+    yellowBaseScoreboard = buildBaseScoreboard('yellow', spawns.yellow);
+
+    // Keep base scoreboards always at the bottom of objectLayer so players move on top
+    blueBaseScoreboard.moveToBottom();
+    redBaseScoreboard.moveToBottom();
+    yellowBaseScoreboard.moveToBottom();
+
+    objectLayer.batchDraw();
+}
+
+// Initialize Scoreboard UI and events
+function initScoreboard() {
+    const toggleBtn = document.getElementById('btn-toggle-scoreboard');
+    const widget = document.getElementById('scoreboard-widget');
+    const resetBtn = document.getElementById('btn-reset-scores');
+
+    // Create on-map bases initially
+    createOnMapScoreboards();
+
+    // Load defaults based on selected map
+    updateMaxScoreByMap();
+
+    // Toggle collapse
+    toggleBtn.addEventListener('click', () => {
+        widget.classList.toggle('collapsed');
+        if (widget.classList.contains('collapsed')) {
+            toggleBtn.textContent = '▼';
+        } else {
+            toggleBtn.textContent = '▲';
+        }
+    });
+
+    // Score adjustments (+10, +100, -10, -100)
+    document.querySelectorAll('.score-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const team = btn.getAttribute('data-team');
+            const val = parseInt(btn.getAttribute('data-val'), 10);
+            adjustScore(team, val);
+        });
+    });
+
+    // Reset scores
+    resetBtn.addEventListener('click', () => {
+        scoreboard.red = 0;
+        scoreboard.blue = 0;
+        scoreboard.yellow = 0;
+        updateScoreboardUI();
+    });
+
+    // Click current score to change directly
+    document.querySelectorAll('.current-score').forEach(el => {
+        el.addEventListener('click', () => {
+            const team = el.id.replace('score-', '');
+            const teamName = team === 'red' ? '黑渦團' : team === 'blue' ? '不滅隊' : '雙蛇黨';
+            const currentVal = scoreboard[team];
+            const newValStr = prompt(`請輸入 ${teamName} 的分數：`, currentVal);
+            if (newValStr !== null) {
+                let newVal = parseInt(newValStr, 10);
+                if (!isNaN(newVal)) {
+                    if (newVal < 0) newVal = 0;
+                    scoreboard[team] = newVal;
+                    updateScoreboardUI();
+                }
+            }
+        });
+    });
+}
+
+function adjustScore(team, value) {
+    let current = scoreboard[team];
+    current += value;
+    if (current < 0) current = 0;
+    scoreboard[team] = current;
+    updateScoreboardUI();
+}
+
+function updateMaxScoreByMap() {
+    const mapUrl = document.getElementById('map-select').value;
+    
+    // Map max scores:
+    // - 塵封密岩 (M1.png) is 700 max
+    // - 昂薩哈凱爾 (M3.png) is 1400 max
+    // - 榮譽野 (M2.jpg) is 1600 max
+    if (mapUrl.includes('M1.png')) {
+        scoreboard.max = 700;
+    } else if (mapUrl.includes('M3.png')) {
+        scoreboard.max = 1400;
+    } else {
+        scoreboard.max = 1600;
+    }
+    updateScoreboardUI();
+}
+
+function updateScoreboardUI() {
+    // Current scores
+    document.getElementById('score-red').textContent = scoreboard.red;
+    document.getElementById('score-blue').textContent = scoreboard.blue;
+    document.getElementById('score-yellow').textContent = scoreboard.yellow;
+
+    // Max score displays in Sidebar Widget
+    document.querySelectorAll('.max-score-display').forEach(el => {
+        el.textContent = scoreboard.max;
+    });
+
+    // Update On-Map Scoreboards (showing only the current score in large format)
+    if (redBaseScoreboard) {
+        const txt = redBaseScoreboard.findOne('.score-value');
+        if (txt) txt.text(`${scoreboard.red}`);
+    }
+    if (blueBaseScoreboard) {
+        const txt = blueBaseScoreboard.findOne('.score-value');
+        if (txt) txt.text(`${scoreboard.blue}`);
+    }
+    if (yellowBaseScoreboard) {
+        const txt = yellowBaseScoreboard.findOne('.score-value');
+        if (txt) txt.text(`${scoreboard.yellow}`);
+    }
+
+    // Calculate & render progress bars
+    const maxVal = scoreboard.max || 1600;
+    const redPct = Math.min(100, Math.round((scoreboard.red / maxVal) * 100));
+    const bluePct = Math.min(100, Math.round((scoreboard.blue / maxVal) * 100));
+    const yellowPct = Math.min(100, Math.round((scoreboard.yellow / maxVal) * 100));
+
+    document.getElementById('progress-red').style.width = `${redPct}%`;
+    document.getElementById('progress-blue').style.width = `${bluePct}%`;
+    document.getElementById('progress-yellow').style.width = `${yellowPct}%`;
+
+    objectLayer.batchDraw();
+}
+
+// Run Scoreboard initialization
+initScoreboard();
