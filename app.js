@@ -1,6 +1,6 @@
 // ========================================================
 // Hachimii - FF14 Front Line Tactics
-// Version: v0.3.9 (Tactics Code Base64 LZW Compression Edition)
+// Version: v0.4.0 (Active Tomelith Territory Indicator Edition)
 // Engine: Konva.js (Multi-Layer Architecture)
 // ========================================================
 
@@ -304,6 +304,48 @@ function createTerrainShape(shapeType) {
     switchToMoveMode();
 }
 
+function updateTomelithMask(group, teamCode, size) {
+    let mask = group.findOne('.tomelith-mask');
+    
+    if (teamCode === '0') {
+        if (mask) {
+            mask.destroy();
+        }
+        return;
+    }
+
+    let color = '';
+    if (teamCode === 'A') color = 'rgba(255, 77, 77, 0.15)';      // Red Black渦團 - faint color
+    else if (teamCode === 'B') color = 'rgba(51, 153, 255, 0.15)';  // Blue 不滅隊 - faint color
+    else if (teamCode === 'C') color = 'rgba(255, 204, 0, 0.15)';   // Yellow 雙蛇黨 - faint color
+
+    let strokeColor = '';
+    if (teamCode === 'A') strokeColor = 'rgba(255, 77, 77, 0.35)';
+    else if (teamCode === 'B') strokeColor = 'rgba(51, 153, 255, 0.35)';
+    else if (teamCode === 'C') strokeColor = 'rgba(255, 204, 0, 0.35)';
+
+    const radius = size * 1.5;
+
+    if (!mask) {
+        mask = new Konva.Circle({
+            x: size / 2,
+            y: size / 2,
+            radius: radius,
+            fill: color,
+            stroke: strokeColor,
+            strokeWidth: 1.5,
+            name: 'tomelith-mask',
+            listening: false // Click-through!
+        });
+        group.add(mask);
+        mask.moveToBottom(); // Render below the image inside the group
+    } else {
+        mask.fill(color);
+        mask.stroke(strokeColor);
+        mask.visible(true);
+    }
+}
+
 function createObjectSprite(objectIndex, x, y, capturedTeam = '0') {
     let imagePath = '';
     let size = 60;
@@ -328,21 +370,60 @@ function createObjectSprite(objectIndex, x, y, capturedTeam = '0') {
     const img = new Image();
     img.crossOrigin = 'Anonymous';
     img.onload = function() {
-        const konvaImage = new Konva.Image({
-            image: img,
-            x: x,
-            y: y,
-            width: size,
-            height: size,
-            draggable: true,
-            customType: 'object-sprite',
-            objectType: objectIndex,
-            capturedTeam: capturedTeam
-        });
+        if (objectIndex >= 6) {
+            // It is a Tomelith! Create a Konva.Group to support the transparent radius mask!
+            const group = new Konva.Group({
+                x: x,
+                y: y,
+                draggable: true,
+                customType: 'object-sprite',
+                objectType: objectIndex,
+                capturedTeam: capturedTeam
+            });
+
+            const konvaImage = new Konva.Image({
+                image: img,
+                x: 0,
+                y: 0,
+                width: size,
+                height: size,
+                name: 'tomelith-image'
+            });
+            group.add(konvaImage);
+
+            // Override getClientRect to return only the image's client rect
+            group.getClientRect = function(config) {
+                const imgNode = this.findOne('.tomelith-image');
+                if (imgNode) {
+                    return imgNode.getClientRect(config);
+                }
+                return Konva.Group.prototype.getClientRect.call(this, config);
+            };
+
+            // Add the transparent captured area mask if occupied
+            updateTomelithMask(group, capturedTeam, size);
+
+            objectLayer.add(group);
+            group.moveToBottom(); // Always stay at the bottom, just above map
+            bindObjectEvents(group);
+        } else {
+            // Normal ice sprite
+            const konvaImage = new Konva.Image({
+                image: img,
+                x: x,
+                y: y,
+                width: size,
+                height: size,
+                draggable: true,
+                customType: 'object-sprite',
+                objectType: objectIndex
+            });
+            
+            objectLayer.add(konvaImage);
+            konvaImage.moveToBottom(); // Always stay at the bottom
+            bindObjectEvents(konvaImage);
+        }
         
-        objectLayer.add(konvaImage);
-        konvaImage.moveToBottom(); // Always stay at the bottom, just above the map layer, so player nodes are never covered
-        bindObjectEvents(konvaImage);
         updateDraggableState();
         objectLayer.batchDraw();
     };
@@ -372,8 +453,22 @@ contextMenu.addEventListener('click', function(e) {
         const newImg = new Image();
         newImg.crossOrigin = 'Anonymous';
         newImg.onload = function() {
-            rightClickedObject.image(newImg);
+            const imgNode = rightClickedObject.findOne('.tomelith-image');
+            if (imgNode) {
+                imgNode.image(newImg);
+            } else {
+                rightClickedObject.image(newImg); // Fallback if not a group
+            }
             rightClickedObject.setAttr('capturedTeam', teamCode); // Store the captured team state!
+            
+            // Determine size based on rank for mask scaling
+            let size = 50;
+            if (rightClickedObject.attrs.objectType === 7) size = 62;
+            else if (rightClickedObject.attrs.objectType === 8) size = 75;
+            
+            // Update the circular capture mask!
+            updateTomelithMask(rightClickedObject, teamCode, size);
+            
             objectLayer.batchDraw();
         };
         newImg.src = `object/score-${rankCode}-${teamCode}.png`;
@@ -1035,7 +1130,7 @@ function exportTacticsJSON() {
     const isLocked = document.getElementById('lock-map') ? (document.getElementById('lock-map').checked ? 1 : 0) : 0;
     
     const data = {
-        v: '0.3.9', 
+        v: '0.4.0', 
         m: mapId,   
         l: isLocked, 
         s: [
