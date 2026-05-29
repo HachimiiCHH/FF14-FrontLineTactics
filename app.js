@@ -1576,10 +1576,11 @@ function importTacticsJSON() {
         createOnMapScoreboards();
 
         // Restore base factions if present in imported data
-        if (data.bf && Array.isArray(data.bf) && data.bf.length === 3) {
-            setGCBaseFactionInternal(0, data.bf[0]);
-            setGCBaseFactionInternal(1, data.bf[1]);
-            setGCBaseFactionInternal(2, data.bf[2]);
+        const baseFactions = data.bf || data.baseFactions;
+        if (baseFactions && Array.isArray(baseFactions) && baseFactions.length === 3) {
+            setGCBaseFactionInternal(0, baseFactions[0]);
+            setGCBaseFactionInternal(1, baseFactions[1]);
+            setGCBaseFactionInternal(2, baseFactions[2]);
         }
 
         // 3. Restore stage scale & position
@@ -1903,9 +1904,15 @@ function setGCBaseFactionInternal(campIndex, team) {
     icon.name(`base-icon-${team}`);
     const baseLogo = icon.findOne('.base-logo');
     if (baseLogo) {
+        baseLogo.setAttr('activeSrc', logo);
         const newImg = new Image();
         newImg.crossOrigin = 'Anonymous';
-        newImg.onload = function() { baseLogo.image(newImg); objectLayer.batchDraw(); };
+        newImg.onload = function() {
+            if (baseLogo.getAttr('activeSrc') === logo) {
+                baseLogo.image(newImg);
+                objectLayer.batchDraw();
+            }
+        };
         newImg.src = logo;
     }
     
@@ -1915,9 +1922,15 @@ function setGCBaseFactionInternal(campIndex, team) {
     if (rect) rect.stroke(color);
     const sbLogo = sbGroup.findOne('.scoreboard-logo');
     if (sbLogo) {
+        sbLogo.setAttr('activeSrc', logo);
         const newImg = new Image();
         newImg.crossOrigin = 'Anonymous';
-        newImg.onload = function() { sbLogo.image(newImg); objectLayer.batchDraw(); };
+        newImg.onload = function() {
+            if (sbLogo.getAttr('activeSrc') === logo) {
+                sbLogo.image(newImg);
+                objectLayer.batchDraw();
+            }
+        };
         newImg.src = logo;
     }
     const txt = sbGroup.findOne('.score-value');
@@ -1983,11 +1996,14 @@ function createOnMapScoreboards() {
         group.add(logoImg);
 
         // Large standalone Faction Logo that covers the background spawn points perfectly
+        logoImg.setAttr('activeSrc', data.logo);
         const imgObj = new Image();
         imgObj.crossOrigin = 'Anonymous';
         imgObj.onload = function() {
-            logoImg.image(imgObj);
-            objectLayer.batchDraw();
+            if (logoImg.getAttr('activeSrc') === data.logo) {
+                logoImg.image(imgObj);
+                objectLayer.batchDraw();
+            }
         };
         imgObj.src = data.logo;
 
@@ -2054,11 +2070,14 @@ function createOnMapScoreboards() {
         group.add(logoImg);
 
         // Logo
+        logoImg.setAttr('activeSrc', data.logo);
         const imgObj = new Image();
         imgObj.crossOrigin = 'Anonymous';
         imgObj.onload = function() {
-            logoImg.image(imgObj);
-            objectLayer.batchDraw();
+            if (logoImg.getAttr('activeSrc') === data.logo) {
+                logoImg.image(imgObj);
+                objectLayer.batchDraw();
+            }
         };
         imgObj.src = data.logo;
 
